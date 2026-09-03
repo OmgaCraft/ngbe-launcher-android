@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>NGBE Launcher</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <h1>NGBE Launcher</h1>
+      <p class="subtitle">Minecraft Bedrock — NationsGlory</p>
+    </header>
+
+    <main class="app-main">
+      <button id="solo-btn" class="solo-button">Mode Solo</button>
+
+      <section class="card">
+        <label class="field-label" for="server-select">Serveur</label>
+        <select id="server-select">
+          <option value="">Choisir un serveur…</option>
+        </select>
+        <div id="server-count" class="server-count-line"></div>
+        <button id="join-btn" class="join-button" disabled>Rejoindre</button>
+      </section>
+
+      <section class="card links-card">
+        <button id="wiki-btn" class="link-button">Wiki</button>
+        <button id="codex-btn" class="link-button">Codex Bedrock</button>
+      </section>
+
+      <section class="card info-card">
+        <h2>Info</h2>
+        <div id="info-edit" class="info-edit">
+          <input id="pseudo-input" type="text" placeholder="Ton pseudo" />
+          <button id="pseudo-confirm" class="confirm-btn">✓</button>
+        </div>
+        <div id="info-summary" class="info-summary" hidden>
+          <div class="profile-header">
+            <img id="skin-face" class="skin-face" alt="" />
+            <div class="profile-heading">
+              <span id="profile-username" class="profile-username"></span>
+              <span id="profile-crown" class="profile-crown" hidden>👑</span>
+            </div>
+            <button id="info-gear" class="gear-btn">⚙</button>
+          </div>
+          <p id="profile-description" class="profile-description"></p>
+          <p class="profile-last-connection">Dernière connexion : <span id="profile-last-connection">—</span></p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
