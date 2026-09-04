@@ -88,15 +88,118 @@ html, body {
   color: var(--muted);
 }
 
-select {
+.server-picker-btn {
   width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   background: var(--panel-alt);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text);
-  padding: 12px 10px;
+  padding: 10px;
   font-size: 15px;
   font-family: inherit;
+  cursor: pointer;
+}
+
+.server-picker-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.server-picker-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.server-picker-label {
+  flex: 1;
+  text-align: left;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-end;
+  z-index: 100;
+}
+
+.modal-sheet {
+  width: 100%;
+  max-height: 75vh;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  border-radius: 16px 16px 0 0;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-sheet h3 {
+  font-size: 15px;
+}
+
+.server-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.server-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.server-picker-row:active {
+  background: var(--panel-alt);
+}
+
+.server-picker-row.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.server-picker-row .server-icon-badge {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.server-picker-row .server-icon-badge svg {
+  width: 100%;
+  height: 100%;
+}
+
+.server-picker-row .server-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.server-picker-row .server-address {
+  font-size: 11px;
+  color: var(--muted);
+  display: block;
+}
+
+.btn-small.secondary {
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .server-count-line {
@@ -144,6 +247,54 @@ select {
 
 .link-button:active {
   background: var(--border);
+}
+
+.news-card h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.news-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.news-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.news-item:active {
+  background: var(--panel-alt);
+}
+
+.news-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--panel-alt);
+}
+
+.news-date {
+  color: var(--muted);
+  font-size: 10px;
+  display: block;
+}
+
+.news-title {
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .info-card h2 {

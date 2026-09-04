@@ -17,10 +17,11 @@
       <button id="solo-btn" class="solo-button">Mode Solo</button>
 
       <section class="card">
-        <label class="field-label" for="server-select">Serveur</label>
-        <select id="server-select">
-          <option value="">Choisir un serveur…</option>
-        </select>
+        <label class="field-label">Serveur</label>
+        <button id="server-picker-btn" class="server-picker-btn">
+          <span id="server-picker-icon" class="server-picker-icon"></span>
+          <span id="server-picker-label">Choisir un serveur…</span>
+        </button>
         <div id="server-count" class="server-count-line"></div>
         <button id="join-btn" class="join-button" disabled>Rejoindre</button>
       </section>
@@ -28,6 +29,11 @@
       <section class="card links-card">
         <button id="wiki-btn" class="link-button">Wiki</button>
         <button id="codex-btn" class="link-button">Codex Bedrock</button>
+      </section>
+
+      <section class="card news-card">
+        <h2>Actualités</h2>
+        <div id="news-list" class="news-list"></div>
       </section>
 
       <section class="card info-card">
@@ -50,6 +56,14 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <div id="server-picker-modal" class="modal-overlay" hidden>
+    <div class="modal-sheet">
+      <h3>Choisir un serveur</h3>
+      <div id="server-picker-list" class="server-picker-list"></div>
+      <button id="server-picker-close" class="btn-small secondary">Fermer</button>
+    </div>
   </div>
 
   <script src="app.js"></script>
