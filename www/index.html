@@ -11,10 +11,21 @@
     <header class="app-header">
       <h1>NGBE Launcher</h1>
       <p class="subtitle">Minecraft Bedrock — NationsGlory</p>
+      <button id="update-btn" class="update-button" title="Vérifier les mises à jour">🔄</button>
     </header>
+    <div id="update-banner" class="update-banner" hidden>
+      <span id="update-banner-text"></span>
+      <button id="update-download-btn" class="btn-small">Télécharger</button>
+    </div>
 
     <main class="app-main">
       <button id="solo-btn" class="solo-button">Mode Solo</button>
+
+      <section class="card quick-buttons">
+        <button id="hub-v2-btn" class="quick-button">HUB V2</button>
+        <button id="hub-v1-btn" class="quick-button">HUB V1</button>
+        <button id="ngisland-btn" class="quick-button">NG Island</button>
+      </section>
 
       <section class="card">
         <label class="field-label">Serveur</label>

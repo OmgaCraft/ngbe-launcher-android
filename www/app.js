@@ -64,6 +64,31 @@ function setupSolo() {
   });
 }
 
+function setupQuickButtons() {
+  const hubV2Btn = document.getElementById('hub-v2-btn');
+  const hubV1Btn = document.getElementById('hub-v1-btn');
+  const ngIslandBtn = document.getElementById('ngisland-btn');
+
+  if (config.hub && config.hub.v2) {
+    hubV2Btn.addEventListener('click', () => {
+      const s = config.hub.v2;
+      openUri(connectUri(s.address, s.port));
+    });
+  }
+  if (config.hub && config.hub.v1) {
+    hubV1Btn.addEventListener('click', () => {
+      const s = config.hub.v1;
+      openUri(connectUri(s.address, s.port));
+    });
+  }
+  if (config.ngIsland) {
+    ngIslandBtn.addEventListener('click', () => {
+      const s = config.ngIsland;
+      openUri(connectUri(s.address, s.port));
+    });
+  }
+}
+
 function setupLinks() {
   document.getElementById('wiki-btn').addEventListener('click', () => {
     if (config.links && config.links.wiki) openUri(config.links.wiki.url);
@@ -229,6 +254,49 @@ async function setupArticles() {
   }
 }
 
+const APP_VERSION = '0.3.0';
+
+function parseVersion(v) {
+  return (v || '').replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+}
+
+function isNewerVersion(latest, current) {
+  const a = parseVersion(latest);
+  const b = parseVersion(current);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const diff = (a[i] || 0) - (b[i] || 0);
+    if (diff !== 0) return diff > 0;
+  }
+  return false;
+}
+
+async function runUpdateCheck(button) {
+  if (button) button.classList.add('spinning');
+  try {
+    const result = await relayGet('/android-version');
+    const banner = document.getElementById('update-banner');
+    const text = document.getElementById('update-banner-text');
+    const downloadBtn = document.getElementById('update-download-btn');
+    if (result.version && isNewerVersion(result.version, APP_VERSION)) {
+      text.textContent = `Nouvelle version disponible : ${result.version} (actuelle : ${APP_VERSION})`;
+      downloadBtn.onclick = () => openUri(result.url);
+      banner.hidden = false;
+    } else {
+      banner.hidden = true;
+    }
+  } catch (err) {
+    console.error('[update-check]', err);
+  } finally {
+    if (button) button.classList.remove('spinning');
+  }
+}
+
+function setupUpdateCheck() {
+  const btn = document.getElementById('update-btn');
+  btn.addEventListener('click', () => runUpdateCheck(btn));
+  runUpdateCheck(null);
+}
+
 async function init() {
   try {
     const res = await fetch('servers.json');
@@ -238,9 +306,11 @@ async function init() {
   }
 
   safe('solo-btn', setupSolo);
+  safe('quick-buttons', setupQuickButtons);
   safe('links', setupLinks);
   safe('server-select', setupServerSelect);
   safe('articles', setupArticles);
+  safe('update-check', setupUpdateCheck);
   safe('info-card', setupInfoCard);
 }
 
