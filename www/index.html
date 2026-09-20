@@ -27,20 +27,12 @@
         <button id="ngisland-btn" class="quick-button">NG Island</button>
       </section>
 
-      <section class="card">
-        <label class="field-label">Serveur</label>
-        <button id="server-picker-btn" class="server-picker-btn">
-          <span id="server-picker-icon" class="server-picker-icon"></span>
-          <span id="server-picker-label">Choisir un serveur…</span>
-        </button>
-        <div id="server-count" class="server-count-line"></div>
-        <button id="join-btn" class="join-button" disabled>Rejoindre</button>
-      </section>
-
       <section class="card links-card">
         <button id="wiki-btn" class="link-button">Wiki</button>
         <button id="codex-btn" class="link-button">Codex Bedrock</button>
       </section>
+
+      <button id="notations-btn" class="notations-button">🏆 Notations — <span id="notations-server-label">aucun serveur</span></button>
 
       <section class="card news-card">
         <h2>Actualités</h2>
@@ -50,30 +42,62 @@
       <section class="card info-card">
         <h2>Info</h2>
         <div id="info-edit" class="info-edit">
-          <input id="pseudo-input" type="text" placeholder="Ton pseudo" />
-          <button id="pseudo-confirm" class="confirm-btn">✓</button>
+          <span class="info-field-label">Pseudo</span>
+          <div class="pseudo-row">
+            <input id="pseudo-input" type="text" placeholder="Ton pseudo" />
+            <button id="pseudo-confirm" class="confirm-btn" title="Valider">✓</button>
+          </div>
         </div>
         <div id="info-summary" class="info-summary" hidden>
           <div class="profile-header">
             <img id="skin-face" class="skin-face" alt="" />
             <div class="profile-heading">
               <span id="profile-username" class="profile-username"></span>
-              <span id="profile-crown" class="profile-crown" hidden>👑</span>
+              <span id="profile-crown" class="profile-crown" title="Compte Prime" hidden>👑</span>
             </div>
-            <button id="info-gear" class="gear-btn">⚙</button>
           </div>
           <p id="profile-description" class="profile-description"></p>
           <p class="profile-last-connection">Dernière connexion : <span id="profile-last-connection">—</span></p>
+          <div id="profile-servers" class="profile-servers"></div>
         </div>
+        <p class="last-server">Dernier serveur : <span id="last-server">aucun</span></p>
+        <button id="info-gear" class="gear-btn" title="Modifier le profil" hidden>⚙</button>
+      </section>
+
+      <section class="servers-section">
+        <h2>Serveurs</h2>
+        <div id="servers-list" class="servers-list"></div>
       </section>
     </main>
   </div>
 
-  <div id="server-picker-modal" class="modal-overlay" hidden>
+  <div id="notations-modal" class="modal-overlay" hidden>
     <div class="modal-sheet">
-      <h3>Choisir un serveur</h3>
-      <div id="server-picker-list" class="server-picker-list"></div>
-      <button id="server-picker-close" class="btn-small secondary">Fermer</button>
+      <h3>Notations</h3>
+      <select id="notations-server-select" class="notations-server-select"></select>
+      <div class="notations-week-row">
+        <button id="notations-prev-week-btn" class="week-nav-btn" title="Semaine précédente">◀</button>
+        <p class="modal-hint" id="notations-week"></p>
+        <button id="notations-next-week-btn" class="week-nav-btn" title="Semaine suivante">▶</button>
+      </div>
+      <div id="notations-your-position" class="notations-your-position" hidden></div>
+      <div id="notations-top3" class="notations-list"></div>
+
+      <p class="modal-hint notations-followed-title">Pays suivis</p>
+      <div id="notations-followed-list" class="notations-list"></div>
+      <div class="pseudo-row" id="notations-follow-row">
+        <input type="text" id="notations-follow-input" placeholder="Nom du pays (ex: France)" />
+        <button id="notations-follow-btn" class="confirm-btn" title="Suivre">+</button>
+      </div>
+
+      <button id="close-notations-btn" class="btn-small secondary">Fermer</button>
+    </div>
+  </div>
+
+  <div id="notation-detail-modal" class="modal-overlay" hidden>
+    <div class="modal-sheet">
+      <button id="close-notation-detail-btn" class="btn-small secondary notation-detail-back">← Retour</button>
+      <div id="notations-detail-content"></div>
     </div>
   </div>
 

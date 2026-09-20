@@ -7,9 +7,9 @@ function safe(label, fn) {
 }
 
 function openUri(uri) {
-  // Native shim installed in MainActivity hands non-http(s) schemes off to
-  // Android's intent resolver (see MainActivity.java). Fallback to a plain
-  // navigation for anything running outside the wrapped app (e.g. browser testing).
+  // Native shim installed in MainActivity hands non-same-origin navigation
+  // off to Android's intent resolver (see MainActivity.java). Fallback to a
+  // plain navigation for anything running outside the wrapped app.
   window.location.href = uri;
 }
 
@@ -48,7 +48,7 @@ function ngLogoSvg(color) {
   `;
 }
 
-let config = { relay: {}, links: {}, servers: [] };
+let config = { relay: {}, hub: {}, ngIsland: null, links: {}, servers: [] };
 
 async function relayGet(pathSegment) {
   const baseUrl = config.relay && config.relay.baseUrl;
@@ -58,6 +58,28 @@ async function relayGet(pathSegment) {
   return res.json();
 }
 
+function rememberServer(name) {
+  localStorage.setItem('ngbe.lastServer', name);
+  const el = document.getElementById('last-server');
+  if (el) el.textContent = name;
+
+  const summary = document.getElementById('info-summary');
+  if (summary && !summary.hidden) refreshProfile();
+
+  updateNotationsButtonLabel();
+}
+
+function launchServer(address, port) {
+  if (!address) return;
+  openUri(connectUri(address, port));
+}
+
+function joinServer(name, address, port) {
+  if (!address) return;
+  launchServer(address, port);
+  rememberServer(name);
+}
+
 function setupSolo() {
   document.getElementById('solo-btn').addEventListener('click', () => {
     openUri('minecraft://');
@@ -65,26 +87,22 @@ function setupSolo() {
 }
 
 function setupQuickButtons() {
-  const hubV2Btn = document.getElementById('hub-v2-btn');
-  const hubV1Btn = document.getElementById('hub-v1-btn');
-  const ngIslandBtn = document.getElementById('ngisland-btn');
-
   if (config.hub && config.hub.v2) {
-    hubV2Btn.addEventListener('click', () => {
+    document.getElementById('hub-v2-btn').addEventListener('click', () => {
       const s = config.hub.v2;
-      openUri(connectUri(s.address, s.port));
+      launchServer(s.address, s.port);
     });
   }
   if (config.hub && config.hub.v1) {
-    hubV1Btn.addEventListener('click', () => {
+    document.getElementById('hub-v1-btn').addEventListener('click', () => {
       const s = config.hub.v1;
-      openUri(connectUri(s.address, s.port));
+      launchServer(s.address, s.port);
     });
   }
   if (config.ngIsland) {
-    ngIslandBtn.addEventListener('click', () => {
+    document.getElementById('ngisland-btn').addEventListener('click', () => {
       const s = config.ngIsland;
-      openUri(connectUri(s.address, s.port));
+      launchServer(s.address, s.port);
     });
   }
 }
@@ -98,84 +116,139 @@ function setupLinks() {
   });
 }
 
-async function refreshServerCount(server, countLine) {
-  if (!server.apiKey) return;
+async function setupArticles() {
+  const list = document.getElementById('news-list');
+  list.textContent = 'Chargement...';
+  try {
+    const articles = await relayGet('/articles');
+    list.innerHTML = '';
+    if (!articles.length) {
+      list.textContent = 'Aucune actualité trouvée.';
+      return;
+    }
+    articles.forEach((article) => {
+      const el = document.createElement('div');
+      el.className = 'news-item';
+      el.innerHTML = `
+        <img class="news-thumb" src="${article.image}" alt="" />
+        <div>
+          <span class="news-date">${article.date}</span>
+          <div class="news-title">${article.title}</div>
+        </div>
+      `;
+      el.addEventListener('click', () => openUri(article.url));
+      list.appendChild(el);
+    });
+  } catch (err) {
+    list.innerHTML = `<span class="profile-error">Impossible de charger les actualités (${err.message})</span>`;
+  }
+}
+
+function setupServersList() {
+  const serversList = document.getElementById('servers-list');
+  (config.servers || []).forEach((server) => {
+    const row = document.createElement('div');
+    const hasAddress = Boolean(server.address);
+    row.className = 'server-row' + (hasAddress ? '' : ' disabled');
+    row.dataset.serverName = server.name;
+    if (server.apiKey) row.dataset.apiKey = server.apiKey;
+
+    const icon = document.createElement('div');
+    icon.className = 'server-icon-badge';
+    icon.innerHTML = ngLogoSvg(server.color || '#3f8f3f');
+
+    const label = document.createElement('div');
+    label.innerHTML = `
+      <div class="server-name">${server.name}</div>
+      <span class="server-address">${hasAddress ? server.address + ':' + server.port : 'non configuré'}</span>
+    `;
+
+    row.appendChild(icon);
+    row.appendChild(label);
+
+    if (hasAddress) {
+      row.addEventListener('click', () => joinServer(server.name, server.address, server.port));
+    }
+
+    serversList.appendChild(row);
+  });
+}
+
+async function refreshServerCounts() {
   try {
     const data = await relayGet('/playercount');
-    const entry = data[server.apiKey];
-    if (entry && typeof entry.players === 'number') {
-      countLine.textContent = `${entry.players} connecté${entry.players === 1 ? '' : 's'}`;
-    }
+    const rows = document.querySelectorAll('.server-row[data-server-name]');
+    rows.forEach((row) => {
+      const apiKey = row.dataset.apiKey || row.dataset.serverName.toLowerCase();
+      const entry = data[apiKey];
+      if (!entry) return;
+      const count = typeof entry === 'object' ? entry.players : entry;
+      if (count === undefined) return;
+      const badge = document.createElement('span');
+      badge.className = 'server-count';
+      badge.textContent = `${count} connecté${count === 1 ? '' : 's'}`;
+      row.appendChild(badge);
+    });
   } catch (err) {
     console.error('[server-count]', err);
   }
 }
 
-function setupServerSelect() {
-  const pickerBtn = document.getElementById('server-picker-btn');
-  const pickerIcon = document.getElementById('server-picker-icon');
-  const pickerLabel = document.getElementById('server-picker-label');
-  const modal = document.getElementById('server-picker-modal');
-  const list = document.getElementById('server-picker-list');
-  const closeBtn = document.getElementById('server-picker-close');
-  const countLine = document.getElementById('server-count');
-  const joinBtn = document.getElementById('join-btn');
-
-  let selected = null;
-
-  function selectServer(server) {
-    selected = server;
-    pickerIcon.innerHTML = ngLogoSvg(server.color || '#003366');
-    pickerLabel.textContent = server.name;
-    joinBtn.disabled = !server.address;
-    countLine.textContent = '';
-    refreshServerCount(server, countLine);
-    modal.hidden = true;
-  }
-
-  (config.servers || []).forEach((server) => {
-    const row = document.createElement('div');
-    const hasAddress = Boolean(server.address);
-    row.className = 'server-picker-row' + (hasAddress ? '' : ' disabled');
-    row.innerHTML = `
-      <div class="server-icon-badge">${ngLogoSvg(server.color || '#003366')}</div>
-      <div>
-        <span class="server-name">${server.name}</span>
-        <span class="server-address">${hasAddress ? server.address + ':' + server.port : 'non configuré'}</span>
-      </div>
-    `;
-    if (hasAddress) {
-      row.addEventListener('click', () => selectServer(server));
-    }
-    list.appendChild(row);
-  });
-
-  pickerBtn.addEventListener('click', () => {
-    modal.hidden = false;
-  });
-  closeBtn.addEventListener('click', () => {
-    modal.hidden = true;
-  });
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) modal.hidden = true;
-  });
-
-  joinBtn.addEventListener('click', () => {
-    if (!selected || !selected.address) return;
-    openUri(connectUri(selected.address, selected.port));
-  });
-}
-
 function setLocked(locked) {
   document.getElementById('info-edit').hidden = locked;
   document.getElementById('info-summary').hidden = !locked;
+  document.getElementById('info-gear').hidden = !locked;
 }
+
+function formatPlaytime(seconds) {
+  if (!seconds) return '0 h';
+  return `${Math.round(seconds / 3600)} h`;
+}
+
+function renderServerStats(playerServers) {
+  const box = document.getElementById('profile-servers');
+  box.innerHTML = '';
+  if (!playerServers) return;
+
+  const lastServerName = localStorage.getItem('ngbe.lastServer');
+  const server = (config.servers || []).find((s) => s.name === lastServerName && s.apiKey);
+  if (!server) return;
+
+  const stats = playerServers[server.apiKey];
+  if (!stats) return;
+
+  const row = document.createElement('div');
+  row.className = 'profile-server-row';
+
+  const icon = document.createElement('div');
+  icon.className = 'server-icon-badge';
+  icon.innerHTML = ngLogoSvg(server.color || '#3f8f3f');
+
+  const name = document.createElement('span');
+  name.className = 'profile-server-name';
+  name.textContent = server.name;
+
+  const details = document.createElement('span');
+  details.className = 'profile-server-stats';
+  const country = stats.country || '—';
+  const rank = stats.country_rank || '—';
+  details.textContent = `Pays : ${country} · Rang : ${rank} · Temps : ${formatPlaytime(stats.playtime)}`;
+
+  row.appendChild(icon);
+  row.appendChild(name);
+  row.appendChild(details);
+  box.appendChild(row);
+}
+
+let cachedPlayerData = null;
 
 async function refreshProfile() {
   const pseudo = document.getElementById('pseudo-input').value.trim();
   if (!pseudo) return;
 
-  document.getElementById('skin-face').src = skinFaceUrl(pseudo, 128);
+  safe('skin-face', () => {
+    document.getElementById('skin-face').src = skinFaceUrl(pseudo, 128);
+  });
 
   const usernameEl = document.getElementById('profile-username');
   const crownEl = document.getElementById('profile-crown');
@@ -187,11 +260,13 @@ async function refreshProfile() {
 
   try {
     const data = await relayGet(`/user/${encodeURIComponent(pseudo)}`);
+    cachedPlayerData = data;
     usernameEl.textContent = data.username || pseudo;
     crownEl.hidden = !data.is_prime;
     descEl.textContent = data.description || 'Aucune description.';
     descEl.classList.remove('profile-error');
     lastConnEl.textContent = formatDate(data.last_connection);
+    renderServerStats(data.servers);
   } catch (err) {
     descEl.textContent = `Erreur : ${err.message}`;
     descEl.classList.add('profile-error');
@@ -226,35 +301,11 @@ function setupInfoCard() {
   if (shouldStartLocked) refreshProfile();
 }
 
-async function setupArticles() {
-  const list = document.getElementById('news-list');
-  list.textContent = 'Chargement...';
-  try {
-    const articles = await relayGet('/articles');
-    list.innerHTML = '';
-    if (!articles.length) {
-      list.textContent = 'Aucune actualité trouvée.';
-      return;
-    }
-    articles.forEach((article) => {
-      const el = document.createElement('div');
-      el.className = 'news-item';
-      el.innerHTML = `
-        <img class="news-thumb" src="${article.image}" alt="" />
-        <div>
-          <span class="news-date">${article.date}</span>
-          <div class="news-title">${article.title}</div>
-        </div>
-      `;
-      el.addEventListener('click', () => openUri(article.url));
-      list.appendChild(el);
-    });
-  } catch (err) {
-    list.innerHTML = `<span class="profile-error">Impossible de charger les actualités (${err.message})</span>`;
-  }
+function setupLastServer() {
+  document.getElementById('last-server').textContent = localStorage.getItem('ngbe.lastServer') || 'aucun';
 }
 
-const APP_VERSION = '0.3.0';
+const APP_VERSION = '0.4.0';
 
 function parseVersion(v) {
   return (v || '').replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
@@ -297,6 +348,470 @@ function setupUpdateCheck() {
   runUpdateCheck(null);
 }
 
+// ---- Notations ----
+
+const NOTATION_SCORE_LABELS = {
+  a: 'Activité',
+  g: 'Gestion',
+  s: 'Skills',
+  e: 'Économie',
+  m: 'Militaire',
+  am: 'AntiMatter',
+  rm: 'RedMatter',
+  eb: 'EndBringer',
+  f: 'Fusée',
+  u: 'Unesco',
+  arch: 'Archi',
+};
+
+function currentNotationsServer() {
+  const lastServerName = localStorage.getItem('ngbe.lastServer');
+  return (config.servers || []).find((s) => s.name === lastServerName && s.apiKey) || null;
+}
+
+function updateNotationsButtonLabel() {
+  const label = document.getElementById('notations-server-label');
+  if (!label) return;
+  const server = currentNotationsServer();
+  label.textContent = server ? server.name : 'aucun serveur';
+}
+
+const ARCH_LABELS = {
+  terraforming: 'Terraforming',
+  coherenceStyle: 'Cohérence du style',
+  activiteRecente: 'Activité récente',
+  blocsCatalogue: 'Blocs catalogue',
+  trouMissiles: 'Trous de missiles',
+  biomeCoherent: 'Biome cohérent',
+  batimentsAbandonnes: 'Bâtiments abandonnés',
+  terraformingRealiste: 'Terraforming réaliste',
+  utilisationSchematica: 'Schematica',
+  habitabiliteMaison: 'Habitabilité',
+  coherenceLumieres: 'Lumières',
+  roleplayPays: 'Roleplay',
+  organics: 'Organique',
+  beaute: 'Beauté',
+  multiplicateurSurfaceConstruite: 'Multiplicateur surface',
+  noteAuteur: "Auteur de la note",
+  source: 'Source',
+};
+
+// Not meaningful yet (always 0/null pending a future NG update) — hide them.
+// noteMax is folded into the Archi score line instead of shown on its own.
+const HIDDEN_ARCH_KEYS = new Set(['bonusChunks', 'bonusChunksPalier', 'noteMax']);
+
+// For these, 0 is the good outcome (no missile holes, no Schematica use) —
+// invert the usual red-means-zero coloring.
+const ZERO_IS_GOOD_ARCH_KEYS = new Set(['trouMissiles', 'utilisationSchematica']);
+
+// Known max per build sub-score, so a nation at the cap shows green.
+const ARCH_MAX = {
+  terraforming: 2,
+  coherenceStyle: 2,
+  activiteRecente: 4,
+  blocsCatalogue: 2,
+  biomeCoherent: 1,
+  batimentsAbandonnes: 1,
+  terraformingRealiste: 1,
+  habitabiliteMaison: 2,
+  coherenceLumieres: 1,
+  roleplayPays: 1,
+  organics: 1,
+  beaute: 4,
+};
+
+// Main scores: fixed 0-based caps, and "a" which ranges -5 to 5.
+const SCORE_MAX = { g: 10, s: 10, e: 10, m: 10, am: 2, rm: 3, f: 3, u: 5 };
+const SCORE_RANGE = { a: [-5, 5] };
+
+function formatValueSpan(value, { max, range, zeroIsGood } = {}) {
+  let display = String(value ?? '—');
+  let cssClass = '';
+
+  if (range) {
+    display = `${value} (${range[0]} à ${range[1]})`;
+    if (value === range[1]) cssClass = 'good-value';
+  } else if (max != null) {
+    display = `${value} / ${max}`;
+    if (value === max) cssClass = 'good-value';
+  }
+
+  if (!cssClass && value === 0) {
+    cssClass = zeroIsGood ? 'good-value' : 'zero-value';
+  } else if (!cssClass && zeroIsGood && typeof value === 'number') {
+    cssClass = 'zero-value';
+  }
+
+  return cssClass ? `<span class="${cssClass}">${display}</span>` : display;
+}
+
+function buildDetailHtml(nation) {
+  const archBreakdown = nation.archBreakdown || {};
+  const noteMax = archBreakdown.noteMax;
+
+  const scoreEntries = Object.entries(nation.scores || {})
+    .map(([key, value]) => {
+      const label = NOTATION_SCORE_LABELS[key] || key.toUpperCase();
+      const max = key === 'arch' ? noteMax : SCORE_MAX[key];
+      const valueHtml = formatValueSpan(value, { max, range: SCORE_RANGE[key] });
+      return `<div><span class="key">${label}</span>: ${valueHtml}</div>`;
+    })
+    .join('');
+
+  const archEntries = Object.entries(archBreakdown)
+    .filter(([key]) => !HIDDEN_ARCH_KEYS.has(key))
+    .map(([key, value]) => {
+      const valueHtml = formatValueSpan(value, {
+        max: ARCH_MAX[key],
+        zeroIsGood: ZERO_IS_GOOD_ARCH_KEYS.has(key),
+      });
+      return `<div><span class="key">${ARCH_LABELS[key] || key}</span>: ${valueHtml}</div>`;
+    })
+    .join('');
+
+  return `
+    <div class="detail-header">
+      <img class="notation-flag" src="${nation.flag || ''}" alt="" onerror="this.classList.add('flag-missing')" />
+      <div>
+        <div class="detail-name">${nation.name}</div>
+        <div class="detail-total">Total : ${nation.total}</div>
+      </div>
+    </div>
+    <div class="detail-section-title">Scores</div>
+    <div class="detail-grid">${scoreEntries}</div>
+    <div class="detail-section-title">Détail Architecture</div>
+    <div class="detail-grid">${archEntries}</div>
+    <div class="detail-balance">Bourse : ${nation.balance ?? '—'} $</div>
+  `;
+}
+
+function showNotationDetail(nation) {
+  document.getElementById('notations-detail-content').innerHTML = buildDetailHtml(nation);
+  document.getElementById('notation-detail-modal').hidden = false;
+}
+
+function hideNotationDetail() {
+  document.getElementById('notation-detail-modal').hidden = true;
+}
+
+function rankColorClass(rank) {
+  if (rank === 1) return 'rank-gold';
+  if (rank === 2) return 'rank-silver';
+  if (rank === 3) return 'rank-bronze';
+  return 'rank-other';
+}
+
+function buildNotationEntry(nation, options = {}) {
+  const row = document.createElement('div');
+  row.className = 'notation-row';
+
+  const colorDot = options.color
+    ? `<span class="server-dot" style="background:${options.color}" title="${options.serverName || ''}"></span>`
+    : '';
+  const rank = options.rankOverride ?? nation.rank;
+
+  row.innerHTML = `
+    <span class="notation-rank ${rankColorClass(rank)}">#${rank}</span>
+    ${colorDot}
+    <img class="notation-flag" src="${nation.flag || ''}" alt="" onerror="this.classList.add('flag-missing')" />
+    <span class="notation-name">${nation.name}</span>
+    <span class="notation-total">${nation.total}</span>
+  `;
+
+  if (options.onRemove) {
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'unfollow-btn';
+    removeBtn.title = 'Ne plus suivre';
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      options.onRemove();
+    });
+    row.appendChild(removeBtn);
+  }
+
+  row.addEventListener('click', () => showNotationDetail(nation));
+
+  return row;
+}
+
+function getFollowedCountries() {
+  try {
+    return JSON.parse(localStorage.getItem('ngbe.followedCountries') || '[]');
+  } catch (err) {
+    return [];
+  }
+}
+
+function saveFollowedCountries(list) {
+  localStorage.setItem('ngbe.followedCountries', JSON.stringify(list));
+}
+
+function addFollowedCountry(server, country) {
+  const list = getFollowedCountries();
+  const exists = list.some(
+    (f) => f.server === server && f.country.toLowerCase() === country.toLowerCase()
+  );
+  if (!exists) {
+    list.push({ server, country });
+    saveFollowedCountries(list);
+  }
+}
+
+function removeFollowedCountry(server, country) {
+  const list = getFollowedCountries().filter(
+    (f) => !(f.server === server && f.country.toLowerCase() === country.toLowerCase())
+  );
+  saveFollowedCountries(list);
+}
+
+let currentNotationsData = null;
+
+const GLOBAL_SERVER_VALUE = '__global__';
+
+function renderFollowedCountries() {
+  const followedBox = document.getElementById('notations-followed-list');
+  followedBox.innerHTML = '';
+  if (!currentNotationsData) return;
+
+  const { server, nations } = currentNotationsData;
+  const isGlobal = server.apiKey === GLOBAL_SERVER_VALUE;
+  const followed = getFollowedCountries().filter((f) => isGlobal || f.server === server.apiKey);
+
+  followed.forEach(({ server: followedServer, country }) => {
+    const nation = nations.find(
+      (n) => n.name.toLowerCase() === country.toLowerCase() && n.server === followedServer
+    );
+    const serverInfo = (config.servers || []).find((s) => s.apiKey === followedServer);
+
+    if (!nation) {
+      const missing = document.createElement('div');
+      missing.className = 'notation-row';
+      missing.innerHTML = `<span class="notation-name">${country} (introuvable — ${serverInfo ? serverInfo.name : followedServer})</span>`;
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'unfollow-btn';
+      removeBtn.textContent = '✕';
+      removeBtn.addEventListener('click', () => {
+        removeFollowedCountry(followedServer, country);
+        renderFollowedCountries();
+      });
+      missing.appendChild(removeBtn);
+      followedBox.appendChild(missing);
+      return;
+    }
+
+    followedBox.appendChild(
+      buildNotationEntry(nation, {
+        rankOverride: isGlobal ? nation.globalRank : undefined,
+        color: isGlobal && serverInfo ? serverInfo.color : undefined,
+        serverName: serverInfo ? serverInfo.name : undefined,
+        onRemove: () => {
+          removeFollowedCountry(followedServer, country);
+          renderFollowedCountries();
+        },
+      })
+    );
+  });
+}
+
+async function fetchGlobalNotations(week) {
+  const servers = (config.servers || []).filter((s) => s.apiKey);
+  const results = await Promise.allSettled(
+    servers.map((s) => relayGet(`/notations/${s.apiKey}${week ? '?week=' + week : ''}`))
+  );
+  const merged = [];
+  let weekMeta = null;
+  results.forEach((result) => {
+    if (result.status === 'fulfilled') {
+      merged.push(...(result.value.nations || []));
+      if (!weekMeta) weekMeta = result.value;
+    }
+  });
+  merged.sort((a, b) => b.total - a.total);
+  merged.forEach((nation, i) => {
+    nation.globalRank = i + 1;
+  });
+  return { nations: merged, weekMeta };
+}
+
+function findPlayerNation(nations, isGlobal, serverApiKey) {
+  if (!cachedPlayerData || !cachedPlayerData.servers) return null;
+  const candidateServers = isGlobal ? config.servers || [] : [{ apiKey: serverApiKey }];
+  for (const s of candidateServers) {
+    if (!s.apiKey) continue;
+    const country = cachedPlayerData.servers[s.apiKey] && cachedPlayerData.servers[s.apiKey].country;
+    if (!country) continue;
+    const match = nations.find(
+      (n) => n.server === s.apiKey && n.name.toLowerCase() === country.toLowerCase()
+    );
+    if (match) return match;
+  }
+  return null;
+}
+
+function updateWeekNavButtons() {
+  const prevBtn = document.getElementById('notations-prev-week-btn');
+  const nextBtn = document.getElementById('notations-next-week-btn');
+  const data = currentNotationsData;
+  prevBtn.disabled = !data || data.prevWeek == null;
+  nextBtn.disabled = !data || data.nextWeek == null;
+}
+
+async function loadNotations(value, week) {
+  const weekLabel = document.getElementById('notations-week');
+  const top3Box = document.getElementById('notations-top3');
+  const yourPositionBox = document.getElementById('notations-your-position');
+  const followRow = document.getElementById('notations-follow-row');
+  const isGlobal = value === GLOBAL_SERVER_VALUE;
+
+  yourPositionBox.hidden = true;
+  yourPositionBox.innerHTML = '';
+  currentNotationsData = null;
+  document.getElementById('notations-followed-list').innerHTML = '';
+  hideNotationDetail();
+  followRow.hidden = isGlobal;
+  updateWeekNavButtons();
+
+  weekLabel.textContent = 'Chargement...';
+  top3Box.innerHTML = '';
+
+  try {
+    let nations;
+    let serverMeta;
+    let weekLabelText;
+    let prevWeek = null;
+    let nextWeek = null;
+
+    if (isGlobal) {
+      const result = await fetchGlobalNotations(week);
+      nations = result.nations;
+      serverMeta = { apiKey: GLOBAL_SERVER_VALUE, name: 'Global NGBE' };
+      weekLabelText = result.weekMeta ? `Classement combiné — ${result.weekMeta.week}` : 'Classement combiné';
+      prevWeek = result.weekMeta ? result.weekMeta.prevWeek : null;
+      nextWeek = result.weekMeta ? result.weekMeta.nextWeek : null;
+    } else {
+      const server = (config.servers || []).find((s) => s.apiKey === value);
+      if (!server) throw new Error('Serveur inconnu');
+      const data = await relayGet(`/notations/${server.apiKey}${week ? '?week=' + week : ''}`);
+      nations = data.nations || [];
+      serverMeta = server;
+      weekLabelText = data.week || '';
+      prevWeek = data.prevWeek;
+      nextWeek = data.nextWeek;
+    }
+
+    weekLabel.textContent = weekLabelText;
+    currentNotationsData = { server: serverMeta, nations, week, prevWeek, nextWeek, selectValue: value };
+    updateWeekNavButtons();
+
+    const topCount = isGlobal ? 10 : 3;
+    top3Box.innerHTML = '';
+
+    if (nations.length === 0) {
+      top3Box.innerHTML = '<p class="modal-hint">Pas encore de données pour cette semaine.</p>';
+      renderFollowedCountries();
+      return;
+    }
+
+    nations.slice(0, topCount).forEach((nation) => {
+      const serverInfo = (config.servers || []).find((s) => s.apiKey === nation.server);
+      top3Box.appendChild(
+        buildNotationEntry(nation, {
+          rankOverride: isGlobal ? nation.globalRank : undefined,
+          color: isGlobal && serverInfo ? serverInfo.color : undefined,
+          serverName: serverInfo ? serverInfo.name : undefined,
+        })
+      );
+    });
+
+    const mine = findPlayerNation(nations, isGlobal, serverMeta.apiKey);
+    const mineRank = isGlobal ? mine && mine.globalRank : mine && mine.rank;
+    if (mine && mineRank > topCount) {
+      const label = document.createElement('p');
+      label.className = 'modal-hint';
+      label.style.marginBottom = '6px';
+      label.textContent = 'Ta nation :';
+      const mineServerInfo = (config.servers || []).find((s) => s.apiKey === mine.server);
+      yourPositionBox.appendChild(label);
+      yourPositionBox.appendChild(
+        buildNotationEntry(mine, {
+          rankOverride: isGlobal ? mine.globalRank : undefined,
+          color: isGlobal && mineServerInfo ? mineServerInfo.color : undefined,
+          serverName: mineServerInfo ? mineServerInfo.name : undefined,
+        })
+      );
+      yourPositionBox.hidden = false;
+    }
+
+    renderFollowedCountries();
+  } catch (err) {
+    weekLabel.textContent = '';
+    top3Box.innerHTML = `<p class="profile-error">Erreur : ${err.message}</p>`;
+  }
+}
+
+function openNotationsModal() {
+  const select = document.getElementById('notations-server-select');
+  document.getElementById('notations-modal').hidden = false;
+  if (select.value) loadNotations(select.value);
+}
+
+function setupNotations() {
+  const select = document.getElementById('notations-server-select');
+  (config.servers || []).forEach((server) => {
+    if (!server.apiKey) return;
+    const opt = document.createElement('option');
+    opt.value = server.apiKey;
+    opt.textContent = server.name;
+    select.appendChild(opt);
+  });
+  const globalOpt = document.createElement('option');
+  globalOpt.value = GLOBAL_SERVER_VALUE;
+  globalOpt.textContent = '🌐 Global NGBE';
+  select.appendChild(globalOpt);
+
+  const preferred = currentNotationsServer();
+  if (preferred) select.value = preferred.apiKey;
+
+  select.addEventListener('change', () => loadNotations(select.value));
+
+  document.getElementById('notations-prev-week-btn').addEventListener('click', () => {
+    if (currentNotationsData && currentNotationsData.prevWeek != null) {
+      loadNotations(currentNotationsData.selectValue, currentNotationsData.prevWeek);
+    }
+  });
+  document.getElementById('notations-next-week-btn').addEventListener('click', () => {
+    if (currentNotationsData && currentNotationsData.nextWeek != null) {
+      loadNotations(currentNotationsData.selectValue, currentNotationsData.nextWeek);
+    }
+  });
+
+  updateNotationsButtonLabel();
+  document.getElementById('notations-btn').addEventListener('click', openNotationsModal);
+  document.getElementById('close-notations-btn').addEventListener('click', () => {
+    document.getElementById('notations-modal').hidden = true;
+  });
+  document.getElementById('close-notation-detail-btn').addEventListener('click', hideNotationDetail);
+
+  const followInput = document.getElementById('notations-follow-input');
+  const followBtn = document.getElementById('notations-follow-btn');
+
+  function followFromInput() {
+    const country = followInput.value.trim();
+    if (!country || !currentNotationsData || currentNotationsData.server.apiKey === GLOBAL_SERVER_VALUE) {
+      return;
+    }
+    addFollowedCountry(currentNotationsData.server.apiKey, country);
+    followInput.value = '';
+    renderFollowedCountries();
+  }
+
+  followBtn.addEventListener('click', followFromInput);
+  followInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') followFromInput();
+  });
+}
+
 async function init() {
   try {
     const res = await fetch('servers.json');
@@ -305,13 +820,16 @@ async function init() {
     console.error('[config]', err);
   }
 
+  safe('update-check', setupUpdateCheck);
   safe('solo-btn', setupSolo);
   safe('quick-buttons', setupQuickButtons);
   safe('links', setupLinks);
-  safe('server-select', setupServerSelect);
+  safe('notations', setupNotations);
   safe('articles', setupArticles);
-  safe('update-check', setupUpdateCheck);
+  safe('servers-list', setupServersList);
+  safe('server-count', refreshServerCounts);
   safe('info-card', setupInfoCard);
+  safe('last-server', setupLastServer);
 }
 
 init();
