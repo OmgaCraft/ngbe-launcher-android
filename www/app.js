@@ -305,7 +305,7 @@ function setupLastServer() {
   document.getElementById('last-server').textContent = localStorage.getItem('ngbe.lastServer') || 'aucun';
 }
 
-const APP_VERSION = '0.4.0';
+const APP_VERSION = '1.0.0';
 
 function parseVersion(v) {
   return (v || '').replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
@@ -321,16 +321,26 @@ function isNewerVersion(latest, current) {
   return false;
 }
 
+const GITHUB_REPO = 'OmgaCraft/ngbe-launcher-android';
+
 async function runUpdateCheck(button) {
   if (button) button.classList.add('spinning');
   try {
-    const result = await relayGet('/android-version');
+    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+      headers: { accept: 'application/vnd.github+json' },
+    });
+    if (!res.ok) throw new Error(`GitHub a répondu ${res.status}`);
+    const release = await res.json();
+    const latestVersion = release.tag_name || '';
+    const asset = (release.assets || []).find((a) => a.name.endsWith('.apk'));
+    const downloadUrl = asset ? asset.browser_download_url : release.html_url;
+
     const banner = document.getElementById('update-banner');
     const text = document.getElementById('update-banner-text');
     const downloadBtn = document.getElementById('update-download-btn');
-    if (result.version && isNewerVersion(result.version, APP_VERSION)) {
-      text.textContent = `Nouvelle version disponible : ${result.version} (actuelle : ${APP_VERSION})`;
-      downloadBtn.onclick = () => openUri(result.url);
+    if (latestVersion && isNewerVersion(latestVersion, APP_VERSION)) {
+      text.textContent = `Nouvelle version disponible : ${latestVersion} (actuelle : ${APP_VERSION})`;
+      downloadBtn.onclick = () => openUri(downloadUrl);
       banner.hidden = false;
     } else {
       banner.hidden = true;
